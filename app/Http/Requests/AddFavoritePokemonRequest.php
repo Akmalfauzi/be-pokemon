@@ -32,7 +32,7 @@ class AddFavoritePokemonRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'pokemon_id' => ['required', 'integer', 'min:1', 'max:1328'],
+            'pokemon_id' => ['required', 'integer', 'min:1'],
         ];
     }
 
@@ -47,7 +47,6 @@ class AddFavoritePokemonRequest extends FormRequest
             'pokemon_id.required' => 'Pokemon ID is required',
             'pokemon_id.integer' => 'Pokemon ID must be an integer',
             'pokemon_id.min' => 'Pokemon ID must be at least 1',
-            'pokemon_id.max' => 'Pokemon ID must not exceed 1328',
         ];
     }
 }

@@ -309,7 +309,7 @@ class PokemonApiFeatureTest extends TestCase
 
         $response = $this->postJson('/api/pokemons/9999/favorite');
 
-        $response->assertStatus(422);
+        $response->assertStatus(404);
     }
 
     public function test_can_remove_from_favorites(): void

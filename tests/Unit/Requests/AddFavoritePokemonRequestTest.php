@@ -87,16 +87,6 @@ class AddFavoritePokemonRequestTest extends TestCase
         $this->assertTrue($validator->errors()->has('pokemon_id'));
     }
 
-    public function test_validation_fails_with_too_large_pokemon_id(): void
-    {
-        $request = $this->createRequest(['pokemon_id' => 1329]);
-        $rules = $request->rules();
-        $validator = validator()->make($request->all(), $rules);
-
-        $this->assertFalse($validator->passes());
-        $this->assertTrue($validator->errors()->has('pokemon_id'));
-    }
-
     public function test_validation_passes_with_minimum_pokemon_id(): void
     {
         $request = $this->createRequest(['pokemon_id' => 1]);
@@ -106,9 +96,9 @@ class AddFavoritePokemonRequestTest extends TestCase
         $this->assertTrue($validator->passes());
     }
 
-    public function test_validation_passes_with_maximum_pokemon_id(): void
+    public function test_validation_passes_with_large_pokemon_id(): void
     {
-        $request = $this->createRequest(['pokemon_id' => 1328]);
+        $request = $this->createRequest(['pokemon_id' => 9999]);
         $rules = $request->rules();
         $validator = validator()->make($request->all(), $rules);
 
@@ -134,7 +124,7 @@ class AddFavoritePokemonRequestTest extends TestCase
         $rules = $request->rules();
 
         $expectedRules = [
-            'pokemon_id' => ['required', 'integer', 'min:1', 'max:1328'],
+            'pokemon_id' => ['required', 'integer', 'min:1'],
         ];
 
         $this->assertEquals($expectedRules, $rules);
@@ -149,7 +139,6 @@ class AddFavoritePokemonRequestTest extends TestCase
             'pokemon_id.required' => 'Pokemon ID is required',
             'pokemon_id.integer' => 'Pokemon ID must be an integer',
             'pokemon_id.min' => 'Pokemon ID must be at least 1',
-            'pokemon_id.max' => 'Pokemon ID must not exceed 1328',
         ];
 
         $this->assertEquals($expectedMessages, $messages);
