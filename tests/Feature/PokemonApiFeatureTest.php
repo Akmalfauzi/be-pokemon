@@ -309,7 +309,6 @@ class PokemonApiFeatureTest extends TestCase
 
         $response = $this->postJson('/api/pokemons/9999/favorite');
 
-        // Should return 422 for validation error since 9999 > 1025
         $response->assertStatus(422);
     }
 
