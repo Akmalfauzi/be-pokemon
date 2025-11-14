@@ -7,7 +7,7 @@ use App\Contracts\FavoriteRepositoryContract;
 use App\Contracts\PokeApiServiceContract;
 use App\Handlers\JsonApiResponseHandler;
 use App\Repositories\Eloquent\FavoritePokemonRepository;
-// use App\Repositories\Mongo\FavoritePokemonMongoRepository; // Uncomment to use MongoDB
+use App\Repositories\Mongo\FavoritePokemonMongoRepository;
 use App\Services\PokeApiService;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,12 +24,14 @@ class AppServiceProvider extends ServiceProvider
         // Bind PokeAPI Service
         $this->app->singleton(PokeApiServiceContract::class, PokeApiService::class);
 
-        // Bind Favorite Repository
-        // Choose one implementation: SQL (Eloquent) or MongoDB
-        $this->app->bind(FavoriteRepositoryContract::class, FavoritePokemonRepository::class);
+        // Bind Favorite Repository based on database connection
+        $dbConnection = config('database.default');
 
-        // To use MongoDB instead, comment the line above and uncomment this:
-        // $this->app->bind(FavoriteRepositoryContract::class, FavoritePokemonMongoRepository::class);
+        if ($dbConnection === 'mongodb') {
+            $this->app->bind(FavoriteRepositoryContract::class, FavoritePokemonMongoRepository::class);
+        } else {
+            $this->app->bind(FavoriteRepositoryContract::class, FavoritePokemonRepository::class);
+        }
     }
 
     /**
