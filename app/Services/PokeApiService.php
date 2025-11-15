@@ -25,35 +25,42 @@ class PokeApiService implements PokeApiServiceContract
     {
         $cacheKey = self::CACHE_PREFIX . "list_page_{$page}_limit_{$limit}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($page, $limit) {
-            try {
-                $offset = ($page - 1) * $limit;
-                $response = Http::get(self::POKEAPI_BASE_URL . '/pokemon', [
-                    'limit' => $limit,
-                    'offset' => $offset
-                ]);
+        if (Cache::has($cacheKey))
+            return Cache::get($cacheKey);
 
-                if ($response->successful()) {
-                    $data = $response->json();
+        try {
+            $offset = ($page - 1) * $limit;
+            $response = Http::get(self::POKEAPI_BASE_URL . '/pokemon', [
+                'limit' => $limit,
+                'offset' => $offset
+            ]);
 
-                    $pokemons = collect($data['results'])->map(function ($pokemon) {
-                        return $this->getPokemonDetail($pokemon['name']);
-                    })->filter()->values()->all();
+            if ($response->successful()) {
+                $data = $response->json();
 
-                    return [
-                        'pokemons' => $pokemons,
-                        'count' => $data['count'],
-                        'next' => $data['next'],
-                        'previous' => $data['previous']
-                    ];
-                }
+                $pokemons = collect($data['results'])->map(function ($pokemon) {
+                    return $this->getPokemonDetail($pokemon['name']);
+                })->filter()->values()->all();
 
-                return ['pokemons' => [], 'count' => 0, 'next' => null, 'previous' => null];
-            } catch (\Exception $e) {
-                Log::error('PokeAPI Error: ' . $e->getMessage());
-                return ['pokemons' => [], 'count' => 0, 'next' => null, 'previous' => null];
+                $result = [
+                    'pokemons' => $pokemons,
+                    'count' => $data['count'],
+                    'next' => $data['next'],
+                    'previous' => $data['previous']
+                ];
+
+                if (!empty($result['pokemons']))
+                    Cache::put($cacheKey, $result, self::CACHE_TTL);
+
+                return $result;
             }
-        });
+
+            Log::error('PokeAPI Error: Failed to fetch pokemon list. Status: ' . $response->status());
+        } catch (\Exception $e) {
+            Log::error('PokeAPI Error: ' . $e->getMessage());
+        }
+
+        return ['pokemons' => [], 'count' => 0, 'next' => null, 'previous' => null];
     }
 
     /**
@@ -66,41 +73,47 @@ class PokeApiService implements PokeApiServiceContract
     {
         $cacheKey = self::CACHE_PREFIX . "detail_{$idOrName}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($idOrName) {
-            try {
-                $response = Http::get(self::POKEAPI_BASE_URL . "/pokemon/{$idOrName}");
+        if (Cache::has($cacheKey))
+            return Cache::get($cacheKey);
 
-                if ($response->successful()) {
-                    $data = $response->json();
+        try {
+            $response = Http::get(self::POKEAPI_BASE_URL . "/pokemon/{$idOrName}");
 
-                    $pokemonData = [
-                        'id' => $data['id'],
-                        'name' => $data['name'],
-                        'pokedex_number' => $data['id'],
-                        'image_url' => $data['sprites']['other']['official-artwork']['front_default']
-                            ?? $data['sprites']['front_default'],
-                        'types' => collect($data['types'])->pluck('type.name')->all(),
-                        'abilities' => collect($data['abilities'])->pluck('ability.name')->all(),
-                        'height' => $data['height'],
-                        'weight' => $data['weight'],
-                        'base_experience' => $data['base_experience'] ?? 0,
-                        'hp' => $data['stats'][0]['base_stat'] ?? 0,
-                        'attack' => $data['stats'][1]['base_stat'] ?? 0,
-                        'defense' => $data['stats'][2]['base_stat'] ?? 0,
-                        'special_attack' => $data['stats'][3]['base_stat'] ?? 0,
-                        'special_defense' => $data['stats'][4]['base_stat'] ?? 0,
-                        'speed' => $data['stats'][5]['base_stat'] ?? 0,
-                    ];
+            if ($response->successful()) {
+                $data = $response->json();
 
-                    return new PokemonResource($pokemonData);
-                }
+                $pokemonData = [
+                    'id' => $data['id'],
+                    'name' => $data['name'],
+                    'pokedex_number' => $data['id'],
+                    'image_url' => $data['sprites']['other']['official-artwork']['front_default']
+                        ?? $data['sprites']['front_default'],
+                    'types' => collect($data['types'])->pluck('type.name')->all(),
+                    'abilities' => collect($data['abilities'])->pluck('ability.name')->all(),
+                    'height' => $data['height'],
+                    'weight' => $data['weight'],
+                    'base_experience' => $data['base_experience'] ?? 0,
+                    'hp' => $data['stats'][0]['base_stat'] ?? 0,
+                    'attack' => $data['stats'][1]['base_stat'] ?? 0,
+                    'defense' => $data['stats'][2]['base_stat'] ?? 0,
+                    'special_attack' => $data['stats'][3]['base_stat'] ?? 0,
+                    'special_defense' => $data['stats'][4]['base_stat'] ?? 0,
+                    'speed' => $data['stats'][5]['base_stat'] ?? 0,
+                ];
 
-                return null;
-            } catch (\Exception $e) {
-                Log::error("PokeAPI Error fetching {$idOrName}: " . $e->getMessage());
-                return null;
+                $pokemonResource = new PokemonResource($pokemonData);
+
+                Cache::put($cacheKey, $pokemonResource, self::CACHE_TTL);
+
+                return $pokemonResource;
             }
-        });
+
+            Log::error("PokeAPI Error fetching {$idOrName}: Failed to fetch pokemon detail. Status: " . $response->status());
+        } catch (\Exception $e) {
+            Log::error("PokeAPI Error fetching {$idOrName}: " . $e->getMessage());
+        }
+
+        return null;
     }
 
     /**
@@ -112,24 +125,31 @@ class PokeApiService implements PokeApiServiceContract
     {
         $cacheKey = self::CACHE_PREFIX . 'all_pokemon_names';
 
-        return Cache::remember($cacheKey, 86400, function () {
-            try {
-                $response = Http::get(self::POKEAPI_BASE_URL . '/pokemon', [
-                    'limit' => 2000,
-                    'offset' => 0
-                ]);
+        if (Cache::has($cacheKey))
+            return Cache::get($cacheKey);
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    return collect($data['results'])->pluck('name')->all();
-                }
+        try {
+            $response = Http::get(self::POKEAPI_BASE_URL . '/pokemon', [
+                'limit' => 2000,
+                'offset' => 0
+            ]);
 
-                return [];
-            } catch (\Exception $e) {
-                Log::error('PokeAPI Error fetching all pokemon names: ' . $e->getMessage());
-                return [];
+            if ($response->successful()) {
+                $data = $response->json();
+                $names = collect($data['results'])->pluck('name')->all();
+
+                if (!empty($names))
+                    Cache::put($cacheKey, $names, 86400);
+
+                return $names;
             }
-        });
+
+            Log::error('PokeAPI Error fetching all pokemon names: Failed to fetch pokemon names. Status: ' . $response->status());
+        } catch (\Exception $e) {
+            Log::error('PokeAPI Error fetching all pokemon names: ' . $e->getMessage());
+        }
+
+        return [];
     }
 
     /**
@@ -145,9 +165,8 @@ class PokeApiService implements PokeApiServiceContract
         try {
             $query = strtolower(trim($query));
 
-            if (empty($query)) {
+            if (empty($query))
                 return [];
-            }
 
             $allNames = $this->getAllPokemonNames();
 
